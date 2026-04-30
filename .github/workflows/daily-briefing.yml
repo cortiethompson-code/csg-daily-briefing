@@ -2,48 +2,43 @@ name: Daily CSG Briefing
 
 on:
   schedule:
-    - cron: '30 8 * * 1-5'     # 8:30 AM ET, Monday–Friday
+    - cron: '30 8 * * 1-5'   # 8:30 AM ET Mon-Fri
   workflow_dispatch:
 
 jobs:
   briefing:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Generate Daily CSG Briefing
+      - name: Generate Briefing
         id: generate
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
         run: |
-          curl -X POST https://api.x.ai/v1/chat/completions \
+          RESPONSE=$(curl -s -X POST https://api.x.ai/v1/chat/completions \
             -H "Authorization: Bearer $XAI_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{
               "model": "grok-4",
               "messages": [
-                {
-                  "role": "system",
-                  "content": "You are Cortie'\''s personal Daily CSG Briefing assistant for ambulatory EHR / practice management at athenahealth. Deliver a ~5-minute read briefing every weekday. US-focused, last 24h emphasis. Structure exactly like this: **Daily CSG Briefing – [Current Date]** then **Top Headlines + CSG Sales Messages** (max 3 items with mixed opportunity + direct counters on high product costs / complicated pricing / flexible outsourcing), **Expanded X Grapevine / Rumors Section**, **Quick Hits & CSG Efficiency**. Tone: mildly opinionated with strategic overtones."
-                },
-                {
-                  "role": "user",
-                  "content": "Generate today'\''s full Daily CSG Briefing now. Use real-time search and X data. Today is $(date +%B\ %d,\ %Y)."
-                }
+                {"role": "system", "content": "You are Cortie'\''s personal Daily CSG Briefing assistant... [same system prompt as before]"},
+                {"role": "user", "content": "Generate today'\''s full Daily CSG Briefing now. Today is $(date +%B\ %d,\ %Y)."}
               ],
-              "temperature": 0.7,
               "max_tokens": 4000
-            }' > briefing.json
+            }')
 
-          echo "briefing=$(jq -r '.choices[0].message.content' briefing.json | sed 's/%/%%/g')" >> $GITHUB_OUTPUT
+          echo "briefing<<EOF" >> $GITHUB_OUTPUT
+          echo "$RESPONSE" | jq -r '.choices[0].message.content' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Send Email
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v4   # Updated to v4
         with:
           server_address: smtp.gmail.com
           server_port: 465
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: Daily CSG Briefing – ${{ steps.generate.outputs.date || 'Today' }}
+          subject: Daily CSG Briefing – $(date +%B\ %d,\ %Y)
           body: ${{ steps.generate.outputs.briefing }}
           to: ${{ secrets.EMAIL_TO }}
           from: Cortie Briefing <${{ secrets.EMAIL_USERNAME }}>
