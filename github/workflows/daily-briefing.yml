@@ -1,0 +1,33 @@
+name: Daily CSG Briefing
+
+on:
+  schedule:
+    - cron: '30 8 * * 1-5'   # Runs at 8:30 AM ET, Monday–Friday
+  workflow_dispatch:        # Allows manual run
+
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate & Send Briefing
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          EMAIL_TO: "cthompson@athenahealth.com"   # Change if needed
+          EMAIL_FROM: "yourgmail@gmail.com"
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: |
+          curl -X POST https://api.x.ai/v1/chat/completions \
+            -H "Authorization: Bearer $XAI_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "model": "grok-4",
+              "messages": [
+                {"role": "system", "content": "You are Cortie'\''s personal Daily CSG Briefing assistant... [paste your full system prompt here]"},
+                {"role": "user", "content": "Generate today'\''s full Daily CSG Briefing now. Today is $(date)."}
+              ],
+              "max_tokens": 4000
+            }' > briefing.json
+
+          # Extract text and send email (simple version)
+          BRIEFING=$(jq -r '.choices[0].message.content' briefing.json)
+          echo "$BRIEFING" | mail -s "Daily CSG Briefing – $(date +%Y-%m-%d)" -a "From: $EMAIL_FROM" "$EMAIL_TO"
