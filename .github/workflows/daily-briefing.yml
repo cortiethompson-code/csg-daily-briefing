@@ -2,7 +2,7 @@ name: Daily CSG Briefing
 
 on:
   schedule:
-    - cron: '30 8 * * 1-5'   # 8:30 AM ET, Mon-Fri
+    - cron: '30 8 * * 1-5'   # 8:30 AM ET Mon-Fri
   workflow_dispatch:
 
 jobs:
@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl msmtp
+
       - name: Generate & Send Daily CSG Briefing
         env:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
@@ -18,7 +23,7 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
           # Generate briefing
-          curl -X POST https://api.x.ai/v1/chat/completions \
+          curl -s -X POST https://api.x.ai/v1/chat/completions \
             -H "Authorization: Bearer $XAI_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{
@@ -26,7 +31,7 @@ jobs:
               "messages": [
                 {
                   "role": "system",
-                  "content": "You are Cortie'\''s personal Daily CSG Briefing assistant for ambulatory EHR / practice management at athenahealth. Deliver a ~5-minute read briefing every weekday. US-focused, last 24h emphasis. Structure exactly like this: **Daily CSG Briefing – [Current Date]** then **Top Headlines + CSG Sales Messages** (max 3 items), **Expanded X Grapevine / Rumors Section**, **Quick Hits & CSG Efficiency**. Tone: mildly opinionated with strategic overtones."
+                  "content": "You are Cortie'\''s personal Daily CSG Briefing assistant for ambulatory EHR / practice management at athenahealth. Deliver a ~5-minute read briefing every weekday. US-focused, last 24h emphasis. Structure exactly like this: **Daily CSG Briefing – [Current Date]** then **Top Headlines + CSG Sales Messages** (max 3 items with mixed opportunity + direct counters on high product costs / complicated pricing / flexible outsourcing), **Expanded X Grapevine / Rumors Section**, **Quick Hits & CSG Efficiency**. Tone: mildly opinionated with strategic overtones."
                 },
                 {
                   "role": "user",
@@ -36,10 +41,22 @@ jobs:
               "max_tokens": 3500
             }' > briefing.json
 
-          # Extract text
           BRIEFING=$(jq -r '.choices[0].message.content' briefing.json)
 
-          # Send email
-          echo "$BRIEFING" | mail -s "Daily CSG Briefing – $(date +%B\ %d,\ %Y)" \
-            -a "From: $EMAIL_USERNAME" \
-            "$EMAIL_TO"
+          # Send via msmtp (more reliable than mail)
+          cat > ~/.msmtprc << EOF
+          account default
+          host smtp.gmail.com
+          port 465
+          from $EMAIL_USERNAME
+          auth login
+          user $EMAIL_USERNAME
+          password $GMAIL_APP_PASSWORD
+          tls on
+          tls_starttls off
+          logfile ~/.msmtp.log
+          EOF
+
+          chmod 600 ~/.msmtprc
+
+          echo -e "Subject: Daily CSG Briefing – $(date +%B\ %d,\ %Y)\n\n$BRIEFING" | msmtp --account default "$EMAIL_TO"
