@@ -2,7 +2,7 @@ name: Daily CSG Briefing
 
 on:
   schedule:
-    - cron: '30 8 * * 1-5'   # 8:30 AM ET Mon-Fri
+    - cron: '30 8 * * 1-5'   # 8:30 AM ET, Monday–Friday
   workflow_dispatch:
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
-          # Generate briefing
+          # Generate briefing with strong real-time instructions
           curl -s -X POST https://api.x.ai/v1/chat/completions \
             -H "Authorization: Bearer $XAI_API_KEY" \
             -H "Content-Type: application/json" \
@@ -31,19 +31,20 @@ jobs:
               "messages": [
                 {
                   "role": "system",
-                  "content": "You are Cortie'\''s personal Daily CSG Briefing assistant for ambulatory EHR / practice management at athenahealth. Deliver a ~5-minute read briefing every weekday. US-focused, last 24h emphasis. Structure exactly like this: **Daily CSG Briefing – [Current Date]** then **Top Headlines + CSG Sales Messages** (max 3 items with mixed opportunity + direct counters on high product costs / complicated pricing / flexible outsourcing), **Expanded X Grapevine / Rumors Section**, **Quick Hits & CSG Efficiency**. Tone: mildly opinionated with strategic overtones."
+                  "content": "You are Cortie'\''s personal Daily CSG Briefing assistant for ambulatory EHR / practice management at athenahealth. TODAY IS MAY 5, 2026. Always use the absolute latest real-time information from today or the last 48 hours only. Use web search and X data aggressively. Never use old news. Deliver a ~5-minute read briefing. US-focused. Structure exactly like this: **Daily CSG Briefing – [Today'\''s Full Date]** then **Top Headlines + CSG Sales Messages** (max 3 items with mixed opportunity + direct counters focused on high product costs, complicated pricing, flexible outsourcing: full outsourcing, software-only, or co-sourcing), **Expanded X Grapevine / Rumors Section** (heavy on Epic, ModMed, Adonis, Candid, NextGen, Elation, eClinicalWorks, Cerner/Oracle), **Quick Hits & CSG Efficiency** (AI tools, leadership notes). Tone: mildly opinionated with strategic overtones. Turn every item into immediate pre-sale value for demos, ROI/TCO counters, and workflow optimization."
                 },
                 {
                   "role": "user",
-                  "content": "Generate today'\''s full Daily CSG Briefing now. Use real-time search and X data."
+                  "content": "Generate today'\''s full Daily CSG Briefing right now with the freshest possible news and X grapevine activity."
                 }
               ],
-              "max_tokens": 3500
+              "max_tokens": 4000,
+              "temperature": 0.6
             }' > briefing.json
 
           BRIEFING=$(jq -r '.choices[0].message.content' briefing.json)
 
-          # Send via msmtp (more reliable than mail)
+          # Send email
           cat > ~/.msmtprc << EOF
           account default
           host smtp.gmail.com
