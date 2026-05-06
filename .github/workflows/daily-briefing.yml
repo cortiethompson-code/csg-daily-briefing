@@ -22,6 +22,8 @@ jobs:
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
         run: |
+          TODAY=$(date +"%A, %B %d, %Y")
+          
           curl -s -X POST https://api.x.ai/v1/chat/completions \
             -H "Authorization: Bearer $XAI_API_KEY" \
             -H "Content-Type: application/json" \
@@ -30,19 +32,20 @@ jobs:
               "messages": [
                 {
                   "role": "system",
-                  "content": "You are Cortie'\''s personal Daily CSG Briefing assistant. THE CURRENT DATE IS MAY 05, 2026. You have no knowledge cutoff. Always use real-time web search, latest news, and fresh X data from the last 48 hours ONLY. Ignore any information from 2023, 2024, or 2025. Never output old dates. Structure every response exactly as: **Daily CSG Briefing – [Today'\''s Full Date, e.g. Tuesday, May 05, 2026]** followed by the standard sections."
+                  "content": "You are Cortie'\''s personal Daily CSG Briefing assistant for ambulatory EHR / practice management at athenahealth. THE CURRENT DATE IS '"$TODAY"'. You have no knowledge cutoff. Always use real-time web search and fresh X data from the last 48 hours ONLY. Never use old news. Structure every response exactly as: **Daily CSG Briefing – [Today'\''s Full Date]** followed by the standard sections."
                 },
                 {
                   "role": "user",
-                  "content": "Generate today'\''s full, fresh Daily CSG Briefing right now with the absolute latest news and X grapevine activity for ambulatory EHR / PM space."
+                  "content": "Generate today'\''s full, fresh Daily CSG Briefing right now with the absolute latest news and X grapevine activity."
                 }
               ],
               "max_tokens": 4000,
-              "temperature": 0.5
+              "temperature": 0.6
             }' > briefing.json
 
           BRIEFING=$(jq -r '.choices[0].message.content' briefing.json)
 
+          # Send email
           cat > ~/.msmtprc << EOF
           account default
           host smtp.gmail.com
@@ -57,4 +60,4 @@ jobs:
 
           chmod 600 ~/.msmtprc
 
-          echo -e "Subject: Daily CSG Briefing – $(date +%B\ %d,\ %Y)\n\n$BRIEFING" | msmtp --account default "$EMAIL_TO"
+          echo -e "Subject: Daily CSG Briefing – $TODAY\n\n$BRIEFING" | msmtp --account default "$EMAIL_TO"
